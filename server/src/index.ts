@@ -1,7 +1,10 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import { createServer } from "http";
+import { createServer as createHttpServer } from "http";
+import { createServer as createHttpsServer } from "https";
+import { readFileSync } from "fs";
+import path from "path";
 import { Server } from "socket.io";
 import { connectDb } from "./db";
 import campaignRoutes from "./routes/campaigns";
@@ -14,7 +17,13 @@ const MONGODB_URI = process.env.MONGODB_URI ?? "mongodb://localhost:27017/heroqu
 const CLIENT_URL = process.env.CLIENT_URL ?? "http://localhost:5173";
 
 const app = express();
-const httpServer = createServer(app);
+
+const TLS_CERT = process.env.TLS_CERT_PATH;
+const TLS_KEY  = process.env.TLS_KEY_PATH;
+const httpServer =
+  TLS_CERT && TLS_KEY
+    ? createHttpsServer({ cert: readFileSync(TLS_CERT), key: readFileSync(TLS_KEY) }, app)
+    : createHttpServer(app);
 
 const io = new Server(httpServer, {
   cors: { origin: CLIENT_URL, methods: ["GET", "POST"] },
@@ -32,6 +41,12 @@ app.use("/api", sessionRoutes);
 app.use("/api/heroes", heroRoutes);
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
+
+// ─── Static Client ────────────────────────────────────────────────────────────
+
+const CLIENT_DIST = path.resolve(__dirname, "../../client/dist");
+app.use(express.static(CLIENT_DIST));
+app.get("*", (_req, res) => res.sendFile(path.join(CLIENT_DIST, "index.html")));
 
 // ─── Socket.io ────────────────────────────────────────────────────────────────
 
