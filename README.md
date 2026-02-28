@@ -64,6 +64,8 @@ HQ_Companioon_V5/
 
 See [DEPLOY.md](DEPLOY.md) for full AWS + Cloudflare Tunnel deployment instructions with end-to-end HTTPS.
 
+If you are starting Infrastructure as Code from scratch, follow [TERRAFORM_GETTING_STARTED.md](TERRAFORM_GETTING_STARTED.md) for a beginner-friendly Terraform workflow.
+
 ---
 
 ## 1. Project Overview
