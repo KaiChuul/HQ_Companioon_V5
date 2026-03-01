@@ -123,6 +123,54 @@ Updated all documentation to reflect the current state of the codebase.
 _Update this file whenever changes are made to the codebase, configuration, or documentation._
 
 ---
+
+## [2026-03-01] — Security, bug fixes, and GM inventory management
+
+**Category:** Bug Fix / Security / Feature
+
+Addressed all high and medium priority issues found in a full codebase review. Changes span shared types, all server routes, socket handlers, and every client page.
+
+### Security & Authorization
+
+- **`server/src/socket/handlers.ts`** — `ADJUST_POINTS` now requires GM role for monster adjustments; hero adjustments require either GM or the owning player (`socket.data.playerId`). `USE_ITEM` has the same ownership check. Previously any connected socket could modify any entity.
+- **`server/src/socket/handlers.ts`** — `SPAWN_MONSTER` validates `monsterTypeId` against the `MONSTER_TYPES` constant before inserting; unknown types are now rejected.
+- **`server/src/routes/heroes.ts`** — `POST /api/heroes` rejects creation with HTTP 409 if a hero of the same type already exists in the campaign, enforcing the `uniqueHeroesOnly` constraint from both packs.
+- **`server/src/routes/campaigns.ts`** — Join codes now use `customAlphabet("A-Z0-9", 6)` (nanoid) instead of `nanoid(6).toUpperCase()`. The previous approach could produce codes containing `_` or `-`.
+
+### Bugs Fixed
+
+- **`server/src/routes/campaigns.ts`** — Moved `GET /join/:code` **before** `GET /:id` to prevent Express matching "join" as a campaign ObjectId.
+- **`server/src/socket/handlers.ts`** — Monster BP adjustment now applies `Math.min(bodyPointsMax, …)` upper clamp (hero BP already had this; monsters did not).
+- **`server/src/socket/handlers.ts`** — `handleSelectHero` now casts `rulesSnapshot` as `EffectiveRules` instead of `any`, and actually uses the `constraints.uniqueHeroesOnly` field to reject duplicate hero type claims.
+- **`client/src/components/StatAdjuster.tsx`** — `+2` button was disabled at `current >= max - 1` (too aggressive); corrected to `current >= max`, matching the `+1` button.
+- **`client/src/pages/PlayerSheet.tsx`** — Removed dead `spellsAvail` state that read from a `sessionStorage` key (`"heroType"`) that was never written anywhere.
+- **`client/src/pages/PlayerSheet.tsx`** — Spell checkboxes were permanently `readOnly` with no handler. They are now interactive: clicking toggles the spell via a new `SELECT_SPELL` socket command, and the UI enforces the per-class limit client-side before the server validates it.
+
+### Architecture & Session Recovery
+
+- **`shared/src/types.ts`** — Added `currentSessionId?: string` to the `Campaign` type and `SelectSpellCommand` to the `SocketCommand` union.
+- **`server/src/models/Campaign.ts`** — Added `currentSessionId` field to the Mongoose schema.
+- **`server/src/routes/sessions.ts`** — On session creation, `campaign.currentSessionId` is written. New `PATCH /api/sessions/:id/end` endpoint sets `endedAt` and clears `currentSessionId` on the campaign.
+- **`client/src/pages/GMDashboard.tsx`** — `loadCampaign` now fetches the session from `campaign.currentSessionId` on mount so the GM can reload the page without losing the active session.
+- **`client/src/pages/GMDashboard.tsx`** — A `useEffect` on `session?.id` now calls `joinSession` with the `sessionId` parameter, ensuring the GM's socket is always in the correct `session:{id}` room to receive `SESSION_UPDATED` events (monsters, rooms). Previously the GM never joined the session room and all real-time session updates were silently dropped.
+- **`client/src/socket.ts`** — Added `lastJoinParams` tracking and a `socket.on("reconnect")` listener that re-emits the join event, restoring `socket.data` and room membership after a reconnect without a page reload.
+- **`server/src/index.ts`** — Join event type extended to include `playerId?: string`.
+- **`client/src/pages/PlayerLobby.tsx`** — `joinSession` now passes `playerId` so the server can verify ownership on subsequent socket commands.
+
+### New Feature — GM Hero Inventory Management
+
+- **`server/src/routes/heroes.ts`** — Four new endpoints: `PATCH /api/heroes/:id/gold` (award/deduct gold), `POST /api/heroes/:id/equipment` (add item), `DELETE /api/heroes/:id/equipment/:equipId` (remove item), `POST /api/heroes/:id/consumables` (add consumable).
+- **`client/src/pages/GMDashboard.tsx`** — New "Hero Inventory" panel in the Party tab. The GM selects a hero from a dropdown and can award gold, add/remove equipment (with optional ATK/DEF bonuses), and add consumables. Hero state updates immediately from the REST response without a full reload.
+- **`client/src/pages/GMDashboard.tsx`** — Added "End Session" button (calls the new end-session endpoint) alongside the existing "Mark Quest Completed" button.
+
+### Code Quality
+
+- **`server/src/utils/docToJson.ts`** _(new file)_ — Extracted shared Mongoose-to-JSON serializer, replacing four identical `docToJson` functions across `campaigns.ts`, `sessions.ts`, `heroes.ts`, and `handlers.ts`.
+- **`client/src/pages/GMDashboard.tsx`** — `loadHeroes` now has a `try/catch` so fetch errors are not silently swallowed.
+- **`server/src/socket/handlers.ts`** — Removed unused `PartyModel` import and the dead `const { sessionId, role }` destructure at connection time.
+
+---
+
 ## [2026-03-01] — Phase 1 dev baseline
 **Category:** Infrastructure
 Provisioned the initial dev EC2 baseline using the default VPC, SSM (Session Manager), and a restricted security group.

@@ -49,7 +49,7 @@ export default function StatAdjuster({ label, current, max, color = "red", onAdj
         <button
           className="btn-secondary text-sm px-3 py-1"
           onClick={() => onAdjust(2)}
-          disabled={current >= max - 1}
+          disabled={current >= max}
         >
           +2
         </button>

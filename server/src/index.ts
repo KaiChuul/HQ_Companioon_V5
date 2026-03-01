@@ -53,8 +53,8 @@ app.get("*", (_req, res) => res.sendFile(path.join(CLIENT_DIST, "index.html")));
 io.on("connection", (socket) => {
   console.log(`[socket] Connected: ${socket.id}`);
 
-  // Client sends join event: { campaignId, sessionId?, role }
-  socket.on("join", (data: { campaignId: string; sessionId?: string; role: "gm" | "player" }) => {
+  // Client sends join event: { campaignId, sessionId?, role, playerId? }
+  socket.on("join", (data: { campaignId: string; sessionId?: string; role: "gm" | "player"; playerId?: string }) => {
     socket.data = { ...data };
     socket.join(`campaign:${data.campaignId}`);
     if (data.sessionId) {

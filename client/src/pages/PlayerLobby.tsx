@@ -91,7 +91,7 @@ export default function PlayerLobby() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      await joinSession({ campaignId: campaign.id, role: "player" });
+      await joinSession({ campaignId: campaign.id, role: "player", playerId });
       sessionStorage.setItem("heroId", data.hero.id);
       navigate(`/hero/${data.hero.id}`);
     } catch (e: any) {

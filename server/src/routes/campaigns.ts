@@ -1,11 +1,13 @@
 import { Router } from "express";
-import { nanoid } from "nanoid";
+import { customAlphabet } from "nanoid";
 import { CampaignModel } from "../models/Campaign";
 import { PartyModel } from "../models/Party";
 import { QUESTS } from "@hq/shared";
 import type { PackId } from "@hq/shared";
+import { docToJson } from "../utils/docToJson";
 
 const router = Router();
+const nanoid6 = customAlphabet("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", 6);
 
 // POST /api/campaigns — create a new campaign
 router.post("/", async (req, res) => {
@@ -23,7 +25,7 @@ router.post("/", async (req, res) => {
       status: i === 0 ? "available" : "locked",
     }));
 
-    const joinCode = nanoid(6).toUpperCase();
+    const joinCode = nanoid6();
 
     const campaign = await CampaignModel.create({
       name,
@@ -42,6 +44,17 @@ router.post("/", async (req, res) => {
   }
 });
 
+// GET /api/campaigns/join/:code — find campaign by join code (must be before /:id)
+router.get("/join/:code", async (req, res) => {
+  try {
+    const campaign = await CampaignModel.findOne({ joinCode: req.params.code.toUpperCase() });
+    if (!campaign) return res.status(404).json({ error: "Campaign not found" });
+    return res.json({ campaign: docToJson(campaign) });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to join" });
+  }
+});
+
 // GET /api/campaigns/:id — load campaign
 router.get("/:id", async (req, res) => {
   try {
@@ -53,18 +66,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// GET /api/campaigns/join/:code — find campaign by join code
-router.get("/join/:code", async (req, res) => {
-  try {
-    const campaign = await CampaignModel.findOne({ joinCode: req.params.code.toUpperCase() });
-    if (!campaign) return res.status(404).json({ error: "Campaign not found" });
-    return res.json({ campaign: docToJson(campaign) });
-  } catch (err) {
-    return res.status(500).json({ error: "Failed to join" });
-  }
-});
-
-// PATCH /api/campaigns/:id/quest-log/:questId — mark quest completed
+// PATCH /api/campaigns/:id/quest-log/:questId — update quest status
 router.patch("/:id/quest-log/:questId", async (req, res) => {
   try {
     const { status } = req.body as { status: string };
@@ -83,13 +85,5 @@ router.patch("/:id/quest-log/:questId", async (req, res) => {
     return res.status(500).json({ error: "Failed to update quest" });
   }
 });
-
-function docToJson(doc: any) {
-  const obj = doc.toObject({ virtuals: false });
-  obj.id = obj._id.toString();
-  delete obj._id;
-  delete obj.__v;
-  return obj;
-}
 
 export default router;

@@ -112,6 +112,7 @@ export type Campaign = {
   joinCode: string;
   enabledPacks: PackId[];
   partyId: string;
+  currentSessionId?: string;
   questLog: {
     questId: string;
     status: "locked" | "available" | "completed";
@@ -253,9 +254,17 @@ export type RemoveMonsterCommand = {
   monsterId: string;
 };
 
+export type SelectSpellCommand = {
+  type: "SELECT_SPELL";
+  heroId: string;
+  spell: string;
+  chosen: boolean;
+};
+
 export type SocketCommand =
   | AdjustPointsCommand
   | SelectHeroCommand
+  | SelectSpellCommand
   | SetRoomStateCommand
   | UseItemCommand
   | SpawnMonsterCommand

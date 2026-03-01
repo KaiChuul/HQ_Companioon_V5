@@ -18,6 +18,7 @@ const CampaignSchema = new Schema<CampaignDoc>(
     joinCode: { type: String, required: true, unique: true },
     enabledPacks: [{ type: String }],
     partyId: { type: String, required: true },
+    currentSessionId: { type: String },
     questLog: [QuestLogSchema],
   },
   { timestamps: { createdAt: "createdAt" } }

@@ -26,6 +26,27 @@ export default function GMDashboard() {
   const [spawnLabel, setSpawnLabel] = useState("");
   const [spawnRoom, setSpawnRoom] = useState("room-1");
 
+  // Hero management state
+  const [managedHeroId, setManagedHeroId] = useState<string | null>(null);
+  const [goldAmount, setGoldAmount] = useState("");
+  const [newEquipName, setNewEquipName] = useState("");
+  const [newEquipAtk, setNewEquipAtk] = useState("");
+  const [newEquipDef, setNewEquipDef] = useState("");
+  const [newConsumName, setNewConsumName] = useState("");
+  const [newConsumQty, setNewConsumQty] = useState("1");
+  const [newConsumEffect, setNewConsumEffect] = useState("");
+
+  const loadHeroes = useCallback(async () => {
+    if (!campaignId) return;
+    try {
+      const res = await fetch(`/api/heroes/campaign/${campaignId}`);
+      const data = await res.json();
+      if (res.ok) setHeroes(data.heroes);
+    } catch {
+      // Hero list is non-critical; silently ignore fetch errors
+    }
+  }, [campaignId]);
+
   const loadCampaign = useCallback(async () => {
     if (!campaignId) return;
     try {
@@ -34,6 +55,13 @@ export default function GMDashboard() {
       if (!res.ok) throw new Error(data.error);
       setCampaign(data.campaign);
       setJoinCode(data.campaign.joinCode);
+
+      // Resume the existing session so the GM can reload the page without losing state
+      if (data.campaign.currentSessionId) {
+        const sRes = await fetch(`/api/sessions/${data.campaign.currentSessionId}`);
+        const sData = await sRes.json();
+        if (sRes.ok) setSession(sData.session);
+      }
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -41,18 +69,12 @@ export default function GMDashboard() {
     }
   }, [campaignId]);
 
-  const loadHeroes = useCallback(async () => {
-    if (!campaignId) return;
-    const res = await fetch(`/api/heroes/campaign/${campaignId}`);
-    const data = await res.json();
-    if (res.ok) setHeroes(data.heroes);
-  }, [campaignId]);
-
   useEffect(() => {
     loadCampaign();
     loadHeroes();
   }, [loadCampaign, loadHeroes]);
 
+  // Join the campaign socket room on mount
   useEffect(() => {
     if (!campaignId) return;
     joinSession({ campaignId, role: "gm" });
@@ -64,6 +86,14 @@ export default function GMDashboard() {
     });
     return unsub;
   }, [campaignId]);
+
+  // When a session becomes available (on load or after starting one), also join its socket room
+  const sessionId = session?.id;
+  useEffect(() => {
+    if (campaignId && sessionId) {
+      joinSession({ campaignId, sessionId, role: "gm" });
+    }
+  }, [campaignId, sessionId]);
 
   async function startSession() {
     if (!selectedQuestId || !campaignId) return;
@@ -78,6 +108,15 @@ export default function GMDashboard() {
       setActiveTab("monsters");
     } else {
       setError(data.error);
+    }
+  }
+
+  async function endSession() {
+    if (!session) return;
+    const res = await fetch(`/api/sessions/${session.id}/end`, { method: "PATCH" });
+    if (res.ok) {
+      setSession(null);
+      loadCampaign();
     }
   }
 
@@ -106,9 +145,79 @@ export default function GMDashboard() {
     loadCampaign();
   }
 
+  // ─── Hero Management ──────────────────────────────────────────────────────────
+
+  function updateHeroInList(updated: Hero) {
+    setHeroes((prev) => prev.map((h) => (h.id === updated.id ? updated : h)));
+  }
+
+  async function awardGold() {
+    if (!managedHeroId || !goldAmount) return;
+    const res = await fetch(`/api/heroes/${managedHeroId}/gold`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount: Number(goldAmount) }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      updateHeroInList(data.hero);
+      setGoldAmount("");
+    }
+  }
+
+  async function addEquipment() {
+    if (!managedHeroId || !newEquipName.trim()) return;
+    const res = await fetch(`/api/heroes/${managedHeroId}/equipment`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: newEquipName.trim(),
+        attackBonus: newEquipAtk ? Number(newEquipAtk) : undefined,
+        defendBonus: newEquipDef ? Number(newEquipDef) : undefined,
+      }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      updateHeroInList(data.hero);
+      setNewEquipName("");
+      setNewEquipAtk("");
+      setNewEquipDef("");
+    }
+  }
+
+  async function removeEquipment(heroId: string, equipId: string) {
+    const res = await fetch(`/api/heroes/${heroId}/equipment/${equipId}`, { method: "DELETE" });
+    const data = await res.json();
+    if (res.ok) updateHeroInList(data.hero);
+  }
+
+  async function addConsumable() {
+    if (!managedHeroId || !newConsumName.trim()) return;
+    const res = await fetch(`/api/heroes/${managedHeroId}/consumables`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: newConsumName.trim(),
+        quantity: Number(newConsumQty) || 1,
+        effect: newConsumEffect.trim() || undefined,
+      }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      updateHeroInList(data.hero);
+      setNewConsumName("");
+      setNewConsumQty("1");
+      setNewConsumEffect("");
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+
   if (loading) return <div className="flex items-center justify-center h-screen text-parchment">Loading…</div>;
   if (error) return <div className="flex items-center justify-center h-screen text-hq-red">{error}</div>;
   if (!campaign) return null;
+
+  const managedHero = heroes.find((h) => h.id === managedHeroId) ?? null;
 
   const TABS: { id: Tab; label: string }[] = [
     { id: "quest", label: "Quest" },
@@ -177,13 +286,29 @@ export default function GMDashboard() {
                   {session ? "Session Running" : "Start Session"}
                 </button>
                 {session && (
-                  <button
-                    className="btn-secondary w-full text-sm"
-                    onClick={() => markQuestCompleted(selectedQuestId)}
-                  >
-                    Mark Quest Completed
-                  </button>
+                  <>
+                    <button
+                      className="btn-secondary w-full text-sm"
+                      onClick={() => markQuestCompleted(selectedQuestId)}
+                    >
+                      Mark Quest Completed
+                    </button>
+                    <button
+                      className="btn-danger w-full text-sm"
+                      onClick={endSession}
+                    >
+                      End Session
+                    </button>
+                  </>
                 )}
+              </div>
+            )}
+            {session && !selectedQuestId && (
+              <div className="card space-y-2">
+                <p className="text-sm text-parchment/70">Session in progress</p>
+                <button className="btn-danger w-full text-sm" onClick={endSession}>
+                  End Session
+                </button>
               </div>
             )}
           </div>
@@ -193,6 +318,147 @@ export default function GMDashboard() {
           <div className="space-y-4">
             <h2 className="text-lg font-display text-hq-amber">Party</h2>
             <PartyOverview heroes={heroes} isGM={true} />
+
+            {heroes.length > 0 && (
+              <div className="card space-y-4">
+                <h2 className="text-sm font-bold text-hq-amber uppercase tracking-wider">Hero Inventory</h2>
+                <select
+                  className="input"
+                  value={managedHeroId ?? ""}
+                  onChange={(e) => setManagedHeroId(e.target.value || null)}
+                >
+                  <option value="">Select hero to manage…</option>
+                  {heroes.map((h) => (
+                    <option key={h.id} value={h.id}>
+                      {h.name} ({h.heroTypeId})
+                    </option>
+                  ))}
+                </select>
+
+                {managedHero && (
+                  <div className="space-y-5">
+                    {/* Gold */}
+                    <div>
+                      <p className="text-xs text-parchment/60 mb-2 uppercase tracking-wider">
+                        Gold — current: {managedHero.gold}
+                      </p>
+                      <div className="flex gap-2">
+                        <input
+                          className="input flex-1"
+                          type="number"
+                          placeholder="Amount (negative to deduct)"
+                          value={goldAmount}
+                          onChange={(e) => setGoldAmount(e.target.value)}
+                        />
+                        <button className="btn-secondary" onClick={awardGold} disabled={!goldAmount}>
+                          Award
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Equipment */}
+                    <div>
+                      <p className="text-xs text-parchment/60 mb-2 uppercase tracking-wider">Equipment</p>
+                      {managedHero.equipment.length > 0 && (
+                        <ul className="space-y-1 mb-3">
+                          {managedHero.equipment.map((e) => (
+                            <li key={e.id} className="flex items-center gap-2 text-sm">
+                              <span className="flex-1 text-parchment">
+                                {e.name}
+                                {e.attackBonus ? <span className="text-hq-red ml-1">+{e.attackBonus}ATK</span> : null}
+                                {e.defendBonus ? <span className="text-blue-400 ml-1">+{e.defendBonus}DEF</span> : null}
+                              </span>
+                              <button
+                                className="text-xs text-hq-red hover:underline"
+                                onClick={() => removeEquipment(managedHero.id, e.id)}
+                              >
+                                Remove
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <div className="space-y-2">
+                        <input
+                          className="input"
+                          placeholder="Item name"
+                          value={newEquipName}
+                          onChange={(e) => setNewEquipName(e.target.value)}
+                        />
+                        <div className="flex gap-2">
+                          <input
+                            className="input flex-1"
+                            type="number"
+                            placeholder="+ATK bonus"
+                            value={newEquipAtk}
+                            onChange={(e) => setNewEquipAtk(e.target.value)}
+                          />
+                          <input
+                            className="input flex-1"
+                            type="number"
+                            placeholder="+DEF bonus"
+                            value={newEquipDef}
+                            onChange={(e) => setNewEquipDef(e.target.value)}
+                          />
+                        </div>
+                        <button
+                          className="btn-secondary w-full"
+                          onClick={addEquipment}
+                          disabled={!newEquipName.trim()}
+                        >
+                          Add Equipment
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Consumables */}
+                    <div>
+                      <p className="text-xs text-parchment/60 mb-2 uppercase tracking-wider">Consumables</p>
+                      {managedHero.consumables.length > 0 && (
+                        <ul className="space-y-1 mb-3">
+                          {managedHero.consumables.map((c) => (
+                            <li key={c.id} className="text-sm text-parchment">
+                              {c.name} ×{c.quantity}
+                              {c.effect ? <span className="text-parchment/50 ml-1">({c.effect})</span> : null}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <input
+                            className="input flex-1"
+                            placeholder="Item name"
+                            value={newConsumName}
+                            onChange={(e) => setNewConsumName(e.target.value)}
+                          />
+                          <input
+                            className="input w-20"
+                            type="number"
+                            placeholder="Qty"
+                            value={newConsumQty}
+                            onChange={(e) => setNewConsumQty(e.target.value)}
+                          />
+                        </div>
+                        <input
+                          className="input"
+                          placeholder="Effect (optional)"
+                          value={newConsumEffect}
+                          onChange={(e) => setNewConsumEffect(e.target.value)}
+                        />
+                        <button
+                          className="btn-secondary w-full"
+                          onClick={addConsumable}
+                          disabled={!newConsumName.trim()}
+                        >
+                          Add Consumable
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

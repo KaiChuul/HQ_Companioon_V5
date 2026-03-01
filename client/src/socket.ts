@@ -3,20 +3,33 @@ import type { SocketCommand } from "@hq/shared";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? "http://localhost:4000";
 
+type JoinParams = {
+  campaignId: string;
+  sessionId?: string;
+  role: "gm" | "player";
+  playerId?: string;
+};
+
 let socket: Socket | null = null;
+let lastJoinParams: JoinParams | null = null;
 
 export function getSocket(): Socket {
   if (!socket) {
     socket = io(SERVER_URL, { autoConnect: false });
+
+    // Re-join rooms automatically after a reconnect so socket.data and room
+    // membership are restored without requiring a page reload.
+    socket.on("reconnect", () => {
+      if (lastJoinParams) {
+        socket!.emit("join", lastJoinParams);
+      }
+    });
   }
   return socket;
 }
 
-export function joinSession(params: {
-  campaignId: string;
-  sessionId?: string;
-  role: "gm" | "player";
-}): Promise<void> {
+export function joinSession(params: JoinParams): Promise<void> {
+  lastJoinParams = params;
   return new Promise((resolve, reject) => {
     const s = getSocket();
     s.connect();

@@ -18,13 +18,14 @@ const HERO_SPELLS: Partial<Record<string, string[]>> = {
   elf: ["Veil of Mist", "Swift Wind", "Courage"],
 };
 
+const SPELL_LIMITS: Partial<Record<string, number>> = { wizard: 4, elf: 2 };
+
 export default function PlayerSheet() {
   const { heroId } = useParams<{ heroId: string }>();
   const [hero, setHero] = useState<Hero | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [tab, setTab] = useState<"stats" | "inventory" | "spells">("stats");
-  const [spellsAvail] = useState<string[]>(HERO_SPELLS[sessionStorage.getItem("heroType") ?? ""] ?? []);
 
   useEffect(() => {
     if (!heroId) return;
@@ -57,12 +58,22 @@ export default function PlayerSheet() {
     sendCommand({ type: "USE_ITEM", heroId, itemId });
   }
 
+  function toggleSpell(spell: string) {
+    if (!hero || !heroId) return;
+    const limit = SPELL_LIMITS[hero.heroTypeId] ?? 0;
+    const chosen = hero.spellsChosenThisQuest.includes(spell);
+    // Prevent selecting beyond the limit on the client before the server rejects it
+    if (!chosen && hero.spellsChosenThisQuest.length >= limit) return;
+    sendCommand({ type: "SELECT_SPELL", heroId, spell, chosen: !chosen });
+  }
+
   if (loading) return <div className="flex items-center justify-center h-screen">Loading…</div>;
   if (error) return <div className="flex items-center justify-center h-screen text-hq-red">{error}</div>;
   if (!hero) return null;
 
   const icon = HERO_ICONS[hero.heroTypeId] ?? "🧝";
   const spells = HERO_SPELLS[hero.heroTypeId] ?? [];
+  const spellLimit = SPELL_LIMITS[hero.heroTypeId] ?? 0;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -198,17 +209,22 @@ export default function PlayerSheet() {
             ) : (
               <div className="space-y-2">
                 <p className="text-xs text-parchment/50 mb-3">
-                  Select spells for this quest ({hero.heroTypeId === "wizard" ? "up to 4" : "up to 2"})
+                  Select spells for this quest ({hero.spellsChosenThisQuest.length}/{spellLimit} chosen)
                 </p>
                 {spells.map((spell) => {
                   const chosen = hero.spellsChosenThisQuest.includes(spell);
+                  const atLimit = !chosen && hero.spellsChosenThisQuest.length >= spellLimit;
                   return (
-                    <label key={spell} className="flex items-center gap-3 cursor-pointer">
+                    <label
+                      key={spell}
+                      className={`flex items-center gap-3 cursor-pointer ${atLimit ? "opacity-40 cursor-not-allowed" : ""}`}
+                    >
                       <input
                         type="checkbox"
                         checked={chosen}
+                        disabled={atLimit}
                         className="accent-hq-amber w-4 h-4"
-                        readOnly
+                        onChange={() => toggleSpell(spell)}
                       />
                       <span className={`text-sm ${chosen ? "text-parchment" : "text-parchment/60"}`}>
                         {spell}

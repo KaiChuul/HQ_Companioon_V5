@@ -3,6 +3,7 @@ import { SessionModel } from "../models/Session";
 import { CampaignModel } from "../models/Campaign";
 import { QUESTS, resolveEffectiveRules } from "@hq/shared";
 import type { PackId } from "@hq/shared";
+import { docToJson } from "../utils/docToJson";
 
 const router = Router();
 
@@ -32,6 +33,11 @@ router.post("/campaigns/:campaignId/sessions", async (req, res) => {
       rulesSnapshot,
     });
 
+    // Persist the active session ID so the GM can resume after reload
+    await CampaignModel.findByIdAndUpdate(req.params.campaignId, {
+      currentSessionId: session._id.toString(),
+    });
+
     return res.status(201).json({ session: docToJson(session) });
   } catch (err) {
     console.error(err);
@@ -50,12 +56,26 @@ router.get("/sessions/:id", async (req, res) => {
   }
 });
 
-function docToJson(doc: any) {
-  const obj = doc.toObject({ virtuals: false });
-  obj.id = obj._id.toString();
-  delete obj._id;
-  delete obj.__v;
-  return obj;
-}
+// PATCH /api/sessions/:id/end — end the active session
+router.patch("/sessions/:id/end", async (req, res) => {
+  try {
+    const session = await SessionModel.findByIdAndUpdate(
+      req.params.id,
+      { endedAt: new Date() },
+      { new: true }
+    );
+    if (!session) return res.status(404).json({ error: "Not found" });
+
+    // Clear currentSessionId on the owning campaign
+    await CampaignModel.findOneAndUpdate(
+      { currentSessionId: req.params.id },
+      { $unset: { currentSessionId: 1 } }
+    );
+
+    return res.json({ session: docToJson(session) });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to end session" });
+  }
+});
 
 export default router;
