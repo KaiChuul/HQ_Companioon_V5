@@ -603,3 +603,20 @@ MVP is complete when:
 - Export/backup campaign JSON
 - Offline mode with conflict resolution
 - Additional expansion packs (new `PackDefinition` entries)
+
+## Architecture & Migration Plan
+
+Developers and AI agents should read these documents **before modifying code**.
+
+- docs/architecture/V6_MIGRATION_PLAN.md
+- docs/architecture/GEAR_RULES_AND_CATALOG_AUDIT.md
+- docs/architecture/EXPANSION_PLUGIN_ARCHITECTURE.md
+- docs/architecture/DREAD_MOON_V6_IMPLEMENTATION.md
+
+These documents define:
+
+- the V6 architecture
+- the combat dice engine
+- gear legality rules
+- the expansion plugin system
+- Rise of the Dread Moon implementation
