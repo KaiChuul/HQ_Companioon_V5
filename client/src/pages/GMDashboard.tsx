@@ -7,11 +7,13 @@ import QuestSelector from "../components/QuestSelector";
 import PartyOverview from "../components/PartyOverview";
 import MonsterTracker from "../components/MonsterTracker";
 import RoomGrid from "../components/RoomGrid";
+import ServerGate from "../components/ServerGate";
 
 type Tab = "quest" | "party" | "monsters" | "rooms";
 
 export default function GMDashboard() {
   const { campaignId } = useParams<{ campaignId: string }>();
+  const [serverReady, setServerReady] = useState(!import.meta.env.VITE_WAKE_URL);
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [heroes, setHeroes] = useState<Hero[]>([]);
@@ -70,13 +72,14 @@ export default function GMDashboard() {
   }, [campaignId]);
 
   useEffect(() => {
+    if (!serverReady) return;
     loadCampaign();
     loadHeroes();
-  }, [loadCampaign, loadHeroes]);
+  }, [loadCampaign, loadHeroes, serverReady]);
 
   // Join the campaign socket room on mount
   useEffect(() => {
-    if (!campaignId) return;
+    if (!campaignId || !serverReady) return;
     joinSession({ campaignId, role: "gm" });
     const unsub = onStateUpdate((update) => {
       if (update.type === "SESSION_UPDATED") setSession(update.session);
@@ -213,6 +216,7 @@ export default function GMDashboard() {
 
   // ─────────────────────────────────────────────────────────────────────────────
 
+  if (!serverReady) return <ServerGate onReady={() => setServerReady(true)} />;
   if (loading) return <div className="flex items-center justify-center h-screen text-parchment">Loading…</div>;
   if (error) return <div className="flex items-center justify-center h-screen text-hq-red">{error}</div>;
   if (!campaign) return null;

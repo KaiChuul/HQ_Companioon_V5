@@ -22,3 +22,8 @@ output "api_url" {
   description = "Backend API / WebSocket endpoint"
   value       = "https://api.hqv2.${var.cf_zone_name}"
 }
+
+output "wake_url" {
+  description = "Lambda Function URL to wake/check the EC2 (set as VITE_WAKE_URL)"
+  value       = aws_lambda_function_url.wake.function_url
+}

@@ -37,3 +37,23 @@ resource "cloudflare_record" "api" {
   content = aws_eip.dev.public_ip
   proxied = true
 }
+
+# Build the client locally and deploy to CF Pages as part of terraform apply.
+# CLOUDFLARE_API_TOKEN is already in the shell (required for the CF provider),
+# so wrangler picks it up automatically — no extra variable needed.
+resource "null_resource" "deploy_frontend" {
+  triggers = {
+    pages_project = cloudflare_pages_project.hq_client.id
+  }
+
+  provisioner "local-exec" {
+    working_dir = "${path.root}/../../../../"
+    command     = "npm run build && npx wrangler pages deploy client/dist --project-name=${var.cf_pages_project_name} --branch=main"
+    environment = {
+      VITE_SERVER_URL = "https://api.hqv2.${var.cf_zone_name}"
+      VITE_WAKE_URL   = aws_lambda_function_url.wake.function_url
+    }
+  }
+
+  depends_on = [cloudflare_pages_project.hq_client]
+}

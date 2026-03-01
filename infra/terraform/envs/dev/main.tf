@@ -90,14 +90,77 @@ resource "aws_instance" "dev" {
   vpc_security_group_ids      = [aws_security_group.dev.id]
   associate_public_ip_address = true
 
+  hibernation = true
+
+  root_block_device {
+    encrypted   = true
+    volume_size = 20
+  }
+
   iam_instance_profile = aws_iam_instance_profile.ec2_ssm_instance_profile.name
 
-  # Install nginx and reverse-proxy port 80 → Node.js on 4000
-  # WebSocket upgrade headers are forwarded so Socket.io works correctly.
-  # The sed removes `default_server` from the stock Amazon Linux 2 nginx.conf
-  # so our conf.d block becomes the sole default and handles all requests.
+  # Full bootstrap: installs Node 20, MongoDB 7, clones the app, builds it,
+  # runs it as a systemd service, and puts nginx in front.
+  # user_data runs asynchronously — the instance reports healthy ~3-5 min
+  # before the app is fully up. CF will retry until it responds.
   user_data = <<-EOF
     #!/bin/bash
+    set -euo pipefail
+
+    # ── System ──────────────────────────────────────────────────────────────
+    yum update -y
+    yum install -y git
+
+    # ── Node.js 20 ──────────────────────────────────────────────────────────
+    curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
+    yum install -y nodejs
+
+    # ── MongoDB 7 ───────────────────────────────────────────────────────────
+    cat > /etc/yum.repos.d/mongodb-org-7.0.repo <<'MONGOREPO'
+    [mongodb-org-7.0]
+    name=MongoDB Repository
+    baseurl=https://repo.mongodb.org/yum/amazon/2/mongodb-org/7.0/x86_64/
+    gpgcheck=1
+    enabled=1
+    gpgkey=https://www.mongodb.org/static/pgp/server-7.0.asc
+    MONGOREPO
+    yum install -y mongodb-org
+    systemctl enable mongod
+    systemctl start mongod
+
+    # ── App ─────────────────────────────────────────────────────────────────
+    git clone https://github.com/${var.github_repo}.git /opt/hq
+    cd /opt/hq
+    npm install
+    npm run build --workspace=shared
+    npm run build --workspace=server
+
+    printf 'PORT=4000\nMONGODB_URI=mongodb://localhost:27017/heroquest\nCLIENT_URL=https://hqv2.${var.cf_zone_name}\n' \
+      > /opt/hq/server/.env
+
+    # ── Systemd service ─────────────────────────────────────────────────────
+    cat > /etc/systemd/system/hq-server.service <<'SERVICE'
+    [Unit]
+    Description=HQ Companion Server
+    After=network.target mongod.service
+    Wants=mongod.service
+
+    [Service]
+    Type=simple
+    WorkingDirectory=/opt/hq/server
+    ExecStart=/usr/bin/node dist/index.js
+    Restart=always
+    RestartSec=5
+    Environment=NODE_ENV=production
+
+    [Install]
+    WantedBy=multi-user.target
+    SERVICE
+    systemctl daemon-reload
+    systemctl enable hq-server
+    systemctl start hq-server
+
+    # ── nginx ────────────────────────────────────────────────────────────────
     yum install -y nginx
     sed -i 's/ default_server//g' /etc/nginx/nginx.conf
     cat > /etc/nginx/conf.d/hq.conf <<'NGINX'

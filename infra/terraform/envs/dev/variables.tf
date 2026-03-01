@@ -32,3 +32,9 @@ variable "cf_pages_project_name" {
   type        = string
   default     = "hq-companion-dev"
 }
+
+variable "github_repo" {
+  description = "GitHub repository (owner/repo) — must be public for EC2 to clone"
+  type        = string
+  default     = "KaiChuul/HQ_Companioon_V5"
+}

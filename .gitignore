@@ -12,3 +12,4 @@ dist/
 *.tfvars
 !*.tfvars.example
 *.log
+infra/terraform/envs/dev/lambdas/*.zip

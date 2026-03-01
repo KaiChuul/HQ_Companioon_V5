@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { SessionModel } from "../models/Session";
 import { CampaignModel } from "../models/Campaign";
+import { HeroModel } from "../models/Hero";
 import { QUESTS, resolveEffectiveRules } from "@hq/shared";
 import type { PackId } from "@hq/shared";
 import { docToJson } from "../utils/docToJson";
@@ -70,6 +71,28 @@ router.patch("/sessions/:id/end", async (req, res) => {
     await CampaignModel.findOneAndUpdate(
       { currentSessionId: req.params.id },
       { $unset: { currentSessionId: 1 } }
+    );
+
+    // Reset all heroes in the campaign: full HP/MP, clear per-quest state
+    await HeroModel.updateMany(
+      { campaignId: session.campaignId },
+      {
+        $set: {
+          "statusFlags.isDead": false,
+          "statusFlags.isInShock": false,
+          "statusFlags.isDisguised": false,
+        },
+        $unset: { spellsChosenThisQuest: 1 },
+      }
+    );
+    const heroes = await HeroModel.find({ campaignId: session.campaignId });
+    await Promise.all(
+      heroes.map((h) =>
+        HeroModel.findByIdAndUpdate(h._id, {
+          bodyPointsCurrent: h.bodyPointsMax,
+          mindPointsCurrent: h.mindPointsMax,
+        })
+      )
     );
 
     return res.json({ session: docToJson(session) });

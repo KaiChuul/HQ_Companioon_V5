@@ -124,6 +124,29 @@ _Update this file whenever changes are made to the codebase, configuration, or d
 
 ---
 
+## [2026-03-01] — Full one-command deploy automation
+
+**Category:** Infrastructure
+
+Extended Terraform so a single `terraform apply` provisions infrastructure, bootstraps the EC2 backend, and deploys the frontend to Cloudflare Pages — no manual steps required after apply.
+
+### `infra/terraform/envs/dev/versions.tf`
+- Added `hashicorp/null ~> 3.0` provider (required for `null_resource` local-exec).
+
+### `infra/terraform/envs/dev/variables.tf`
+- Added `github_repo` variable (default `KaiChuul/HQ_Companioon_V5`) — used by EC2 `user_data` to clone the app.
+
+### `infra/terraform/envs/dev/main.tf`
+- Replaced the minimal nginx-only `user_data` with a full bootstrap script that: installs Node.js 20 (NodeSource), installs MongoDB 7 (official MongoDB yum repo), clones the repo from GitHub, runs `npm install` + builds shared and server workspaces, writes `server/.env`, registers and starts `hq-server` as a `systemd` service (with auto-restart), then installs and configures nginx as before.
+
+### `infra/terraform/envs/dev/cloudflare.tf`
+- Added `null_resource.deploy_frontend`: runs `npm run build && npx wrangler pages deploy client/dist` locally at the end of `terraform apply`. Sets `VITE_SERVER_URL` as a build-time env var so Vite bakes the correct API URL into the bundle. `CLOUDFLARE_API_TOKEN` is inherited from the shell (already required for the CF provider).
+
+### `.gitignore`
+- Added `.env.production` pattern — the file was tracked from a previous commit and needed to be excluded.
+
+---
+
 ## [2026-03-01] — Security, bug fixes, and GM inventory management
 
 **Category:** Bug Fix / Security / Feature
