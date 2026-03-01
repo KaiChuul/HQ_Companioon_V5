@@ -8,7 +8,12 @@ terraform {
     }
   }
 
-  backend "s3" {}
+  backend "s3" {
+    bucket         = "hq-tfstate-kyriakos-2026-eu-central-1"
+    key            = "dev/terraform.tfstate"
+    region         = "eu-central-1"
+    dynamodb_table = "hq-terraform-locks"
+  }
 }
 
 provider "aws" {
