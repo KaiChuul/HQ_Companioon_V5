@@ -666,28 +666,26 @@ async function handleEndSession(io: Server, socket: Socket, cmd: Extract<SocketC
     { $unset: { currentSessionId: 1 } }
   );
 
-  // Reset all heroes: restore full HP/MP, clear per-quest status flags and spell selections
+  // Reset all heroes in a single bulk update:
+  // restore full HP/MP and clear per-quest status/spell flags.
   await HeroModel.updateMany(
     { campaignId: session.campaignId },
-    {
-      $set: {
-        "statusFlags.isDead": false,
-        "statusFlags.isInShock": false,
-        "statusFlags.isDisguised": false,
-        "statusFlags.hasDisguiseToken": false,
-        hideoutRestUsedThisQuest: false,
+    [
+      {
+        $set: {
+          bodyPointsCurrent: "$bodyPointsMax",
+          mindPointsCurrent: "$mindPointsMax",
+          "statusFlags.isDead": false,
+          "statusFlags.isInShock": false,
+          "statusFlags.isDisguised": false,
+          "statusFlags.hasDisguiseToken": false,
+          hideoutRestUsedThisQuest: false,
+        },
       },
-      $unset: { spellsChosenThisQuest: 1, "statusFlags.disguiseBrokenReason": 1 },
-    }
-  );
-  const heroes = await HeroModel.find({ campaignId: session.campaignId });
-  await Promise.all(
-    heroes.map((h) =>
-      HeroModel.findByIdAndUpdate(h._id, {
-        bodyPointsCurrent: h.bodyPointsMax,
-        mindPointsCurrent: h.mindPointsMax,
-      })
-    )
+      {
+        $unset: ["spellsChosenThisQuest", "statusFlags.disguiseBrokenReason"],
+      },
+    ] as any
   );
 
   const updatedCampaign = await CampaignModel.findById(session.campaignId);
