@@ -72,6 +72,10 @@ export type Quest = {
   title: string;
   flags?: QuestFlags;
   roomSpawns?: Record<string, SpawnRule[]>;
+  // roomId → adjacent roomIds (placeholder — verify against physical questbook)
+  roomGraph?: Record<string, string[]>;
+  // Engine-level behaviour tags (no copyrighted text)
+  specialRuleTags?: string[];
 };
 
 // ─── Effective Rules ──────────────────────────────────────────────────────────
@@ -383,126 +387,8 @@ export const HERO_BASE_STATS: Record<HeroTypeId, Pick<Hero, "bodyPointsMax" | "m
   knight:    { bodyPointsMax: 7, mindPointsMax: 4, attackDice: 2, defendDice: 3 },
 };
 
-// ─── Quest Data (metadata only, no copyrighted text) ─────────────────────────
-
-// ── Quest Spawn Rules ─────────────────────────────────────────────────────────
-// roomSpawns define which monsters auto-spawn when a room is first revealed.
-// Room IDs are positional: "room-1" … "room-12" (matching the RoomGrid order).
-// These are PLACEHOLDER values — verify against your physical questbook and
-// adjust to match the exact monster placement on each quest map before playing.
-
-export const QUESTS: Quest[] = [
-  // ── Base Game ──────────────────────────────────────────────────────────────
-  {
-    id: "base-1", packId: "BASE", number: 1, title: "The Trial",
-    roomSpawns: {
-      "room-1":  [{ monsterTypeId: "goblin", count: 2 }],
-      "room-3":  [{ monsterTypeId: "goblin", count: 1 }],
-      "room-5":  [{ monsterTypeId: "orc",    count: 1 }],
-      "room-7":  [{ monsterTypeId: "goblin", count: 2 }],
-      "room-9":  [{ monsterTypeId: "orc",    count: 1 }],
-    },
-  },
-  {
-    id: "base-2", packId: "BASE", number: 2, title: "The Maze of Zagor",
-    roomSpawns: {
-      "room-2":  [{ monsterTypeId: "goblin", count: 2 }],
-      "room-4":  [{ monsterTypeId: "orc",    count: 2 }],
-      "room-6":  [{ monsterTypeId: "goblin", count: 1 }],
-      "room-8":  [{ monsterTypeId: "orc",    count: 1 }],
-      "room-10": [{ monsterTypeId: "chaos_warrior", count: 1 }],
-    },
-  },
-  {
-    id: "base-3", packId: "BASE", number: 3, title: "Bastion of Evil",
-    roomSpawns: {
-      "room-1":  [{ monsterTypeId: "orc",    count: 2 }],
-      "room-3":  [{ monsterTypeId: "goblin", count: 2 }],
-      "room-5":  [{ monsterTypeId: "orc",    count: 2 }],
-      "room-7":  [{ monsterTypeId: "chaos_warrior", count: 1 }],
-      "room-9":  [{ monsterTypeId: "orc",    count: 1 }],
-    },
-  },
-  {
-    id: "base-4", packId: "BASE", number: 4, title: "The Fire Mage",
-    roomSpawns: {
-      "room-2":  [{ monsterTypeId: "goblin", count: 3 }],
-      "room-4":  [{ monsterTypeId: "orc",    count: 2 }],
-      "room-6":  [{ monsterTypeId: "chaos_warrior", count: 1 }],
-      "room-8":  [{ monsterTypeId: "orc",    count: 2 }],
-      "room-10": [{ monsterTypeId: "chaos_warrior", count: 2 }],
-    },
-  },
-  {
-    id: "base-5", packId: "BASE", number: 5, title: "The Castle of Mystery",
-    roomSpawns: {
-      "room-1":  [{ monsterTypeId: "skeleton", count: 2 }],
-      "room-3":  [{ monsterTypeId: "zombie",   count: 2 }],
-      "room-5":  [{ monsterTypeId: "skeleton", count: 3 }],
-      "room-7":  [{ monsterTypeId: "mummy",    count: 1 }],
-      "room-9":  [{ monsterTypeId: "zombie",   count: 2 }],
-    },
-  },
-  {
-    id: "base-6", packId: "BASE", number: 6, title: "The Rescue of Sir Ragnar",
-    roomSpawns: {
-      "room-2":  [{ monsterTypeId: "orc",    count: 2 }],
-      "room-4":  [{ monsterTypeId: "goblin", count: 3 }],
-      "room-6":  [{ monsterTypeId: "orc",    count: 2 }],
-      "room-8":  [{ monsterTypeId: "chaos_warrior", count: 1 }],
-      "room-10": [{ monsterTypeId: "orc",    count: 2 }],
-    },
-  },
-  {
-    id: "base-7", packId: "BASE", number: 7, title: "The Witch Lord's Sword",
-    roomSpawns: {
-      "room-1":  [{ monsterTypeId: "skeleton", count: 2 }],
-      "room-3":  [{ monsterTypeId: "chaos_warrior", count: 2 }],
-      "room-5":  [{ monsterTypeId: "mummy",    count: 1 }],
-      "room-7":  [{ monsterTypeId: "chaos_warrior", count: 2 }],
-      "room-9":  [{ monsterTypeId: "gargoyle", count: 1 }],
-    },
-  },
-  {
-    id: "base-8", packId: "BASE", number: 8, title: "Maze of the Witch Lord",
-    roomSpawns: {
-      "room-2":  [{ monsterTypeId: "zombie",   count: 2 }],
-      "room-4":  [{ monsterTypeId: "skeleton", count: 3 }],
-      "room-6":  [{ monsterTypeId: "chaos_warrior", count: 2 }],
-      "room-8":  [{ monsterTypeId: "mummy",    count: 2 }],
-      "room-10": [{ monsterTypeId: "gargoyle", count: 1 }],
-    },
-  },
-  {
-    id: "base-9", packId: "BASE", number: 9, title: "Prince Magnus's Gold",
-    roomSpawns: {
-      "room-1":  [{ monsterTypeId: "goblin", count: 2 }],
-      "room-3":  [{ monsterTypeId: "orc",    count: 2 }],
-      "room-5":  [{ monsterTypeId: "chaos_warrior", count: 2 }],
-      "room-7":  [{ monsterTypeId: "mummy",   count: 1 }],
-      "room-9":  [{ monsterTypeId: "gargoyle", count: 1 }],
-    },
-  },
-  {
-    id: "base-10", packId: "BASE", number: 10, title: "The Witch Lord's Domain",
-    roomSpawns: {
-      "room-2":  [{ monsterTypeId: "chaos_warrior", count: 2 }],
-      "room-4":  [{ monsterTypeId: "mummy",    count: 2 }],
-      "room-6":  [{ monsterTypeId: "gargoyle", count: 2 }],
-      "room-8":  [{ monsterTypeId: "chaos_warrior", count: 2 }],
-      "room-10": [{ monsterTypeId: "witch_lord", count: 1 }],
-    },
-  },
-  // ── Dread Moon (no spawn rules yet — fill in from expansion questbook) ──────
-  { id: "dm-1", packId: "DREAD_MOON", number: 1, title: "The Mark of Dread" },
-  { id: "dm-2", packId: "DREAD_MOON", number: 2, title: "The Dungeon Below" },
-  { id: "dm-3", packId: "DREAD_MOON", number: 3, title: "The Caverns of Corruption" },
-  { id: "dm-4", packId: "DREAD_MOON", number: 4, title: "Secrets of the Catacombs" },
-  { id: "dm-5", packId: "DREAD_MOON", number: 5, title: "The Crystal Caves" },
-  { id: "dm-6", packId: "DREAD_MOON", number: 6, title: "The Fallen Keep" },
-  { id: "dm-7", packId: "DREAD_MOON", number: 7, title: "The Shadow Vaults" },
-  { id: "dm-8", packId: "DREAD_MOON", number: 8, title: "The Dread Moon Rising" },
-];
+// Quest data lives in app/shared/src/data/*/quests/ — import from there.
+export { QUESTS } from "./data/quests";
 
 // ─── Monster Types ────────────────────────────────────────────────────────────
 
