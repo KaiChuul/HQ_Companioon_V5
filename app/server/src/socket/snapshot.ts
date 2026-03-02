@@ -28,7 +28,8 @@ export async function buildSnapshotForSocket(socket: Socket, preferredSessionId?
   }
 
   const sessionId = preferredSessionId ?? (socket.data.sessionId as string | undefined) ?? campaign?.currentSessionId;
-  const session = sessionId ? await SessionModel.findById(sessionId) : null;
+  const rawSession = sessionId ? await SessionModel.findById(sessionId) : null;
+  const session = rawSession && rawSession.campaignId === campaignId ? rawSession : null;
 
   return {
     campaign: campaign ? docToJson(campaign) : null,

@@ -14,6 +14,7 @@ import partyRoutes from "./routes/parties";
 import { registerSocketHandlers } from "./socket/handlers";
 import { verifyToken } from "./auth";
 import { CampaignModel } from "./models/Campaign";
+import { SessionModel } from "./models/Session";
 import { buildSnapshotForSocket } from "./socket/snapshot";
 
 const PORT = Number(process.env.PORT ?? 4000);
@@ -102,6 +103,10 @@ io.on("connection", (socket) => {
     }
 
     if (sessionIdToJoin) {
+      const session = await SessionModel.findById(sessionIdToJoin);
+      if (!session || session.campaignId !== socket.data.campaignId) {
+        return socket.emit("error", { message: "Forbidden: session is not in your campaign" });
+      }
       socket.join(`session:${sessionIdToJoin}`);
       socket.data.sessionId = sessionIdToJoin;
     }
