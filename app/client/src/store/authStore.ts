@@ -20,13 +20,17 @@ export type ClientIdentity = {
 const STORAGE_KEY = "hq_token";
 
 function readStoredToken(): string | null {
-  return localStorage.getItem(STORAGE_KEY) ?? sessionStorage.getItem(STORAGE_KEY);
+  // Prefer tab-scoped player token when present so a GM token in localStorage
+  // does not leak into player REST/socket calls in another tab.
+  return sessionStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(STORAGE_KEY);
 }
 
 function persistToken(token: string, role: "gm" | "player"): void {
   if (role === "gm") {
+    sessionStorage.removeItem(STORAGE_KEY);
     localStorage.setItem(STORAGE_KEY, token);
   } else {
+    localStorage.removeItem(STORAGE_KEY);
     sessionStorage.setItem(STORAGE_KEY, token);
   }
 }
